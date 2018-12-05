@@ -59,17 +59,20 @@ Check to see if linear model for pred mass is significant
 ```{r}
 predlong<- lm(predprey$Predator_mass~predprey$Longitude) #significant and negative 
 summary(predlong)
+plot(predlong) #using these to check normality of data, and lm assumptions. 
 
 predlat<-lm(predprey$Predator_mass~predprey$Latitude) #significant and positive
 summary(predlat)
-
+plot(predlat)
 ```
 ```{r}
 preylat<-lm(predprey$Prey_mass~predprey$Latitude) #significant and positive
 summary(preylat)
+plot(preylat)
 
 preylong<-lm(predprey$Prey_mass~predprey$Longitude) #not significant
 summary(preylong)
+plot(preylong)
 ```
 
 
@@ -93,36 +96,76 @@ ggplot(data = predprey, aes(x = Prey_common_name)) +
 ```
 We can see that there are many species who only appear a few times (rare), while others form the majority of all data points.
 
-Now let's plot species richness over latitude:
+Now let's plot species richness over latitude, separating out hemispheres:
 ```{r}
-predprey %>%
- group_by(Latitude) %>%
- summarize(Predator_Species_Richness=length(unique(Predator_common_name))) %>% #find the unique number of species at each latitude
-  ggplot(aes(x= Latitude, y=Predator_Species_Richness))+
-  geom_point()+
-  geom_smooth(method='lm')+
-  fte_theme()
+predprey2<-predprey %>% 
+  mutate(Hemisphere =ifelse(Latitude>0, 'Northern_Hemisphere', 'Southern_Hemisphere')) #this part is dale's code but I need it for the below to work
 
-predprey %>%
- group_by(Latitude) %>%
- summarize(Prey_Species_Richness=length(unique(Prey_common_name))) %>% 
-  ggplot(aes(x= Latitude, y=Prey_Species_Richness))+
-  geom_point()+
-  geom_smooth(method='lm')+
-  fte_theme()
+predprey2 <- predprey2 %>% 
+  mutate(Prey_Species_Richness=length(unique(Prey_common_name)), 
+         Predator_Species_Richness=length(unique(Predator_common_name)))
+predprey2N <- predprey2 %>% 
+  filter(Hemisphere=="Northern_Hemisphere") #Separate out hemispheres to look more specifically. 
+predprey2S <- predprey2 %>%
+  filter(Hemisphere=="Southern_Hemisphere")
 
-#Make linear models for these
-predpreyalt<-predprey %>%
+PredatorrichlatN <- predprey2N %>% 
   group_by(Latitude) %>% 
-  mutate(Predator_Species_Richness=length(unique(Predator_common_name)))
-richlat_P<-lm(predpreyalt$Predator_Species_Richness~predpreyalt$Latitude)
-summary(richlat_P)
+  summarize(Predator_Species_Richness=length(unique(Predator_common_name))) %>% #find the unique number of species at each latitude
+  ggplot(.,aes(x=Latitude, y=Predator_Species_Richness))+
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  fte_theme()+
+  labs(x = 'Latitude', y = 'Predator Species Richness')
+PredatorrichlatN
 
-predpreyalt<-predpreyalt %>%
+PredatorrichlmN <- lm(Predator_Species_Richness ~ Latitude, data = predprey2N)
+summary(PredatorrichlmN) #significant but wrong direction
+plot(PredatorrichlmN)
+
+
+PreyrichlatN <- predprey2N %>% 
   group_by(Latitude) %>% 
-  mutate(Prey_Species_Richness=length(unique(Prey_common_name)))
-richlat_p<-lm(predpreyalt$Prey_Species_Richness~predpreyalt$Latitude)
-summary(richlat_p)
+  summarize(Prey_Species_Richness=length(unique(Prey_common_name))) %>% 
+  ggplot(.,aes(x=Latitude, y=Prey_Species_Richness))+
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  fte_theme()+
+  labs(x = 'Latitude', y = 'Prey Species Richness')
+PreyrichlatN
+
+PreyrichlmN <- lm(Prey_Species_Richness ~ Latitude, data = predprey2N)
+summary(PreyrichlmN) #significant but wrong direction
+plot(PreyrichlmN)
+
+
+PredatorrichlatS <- predprey2S %>% 
+  group_by(Latitude) %>% 
+  summarize(Predator_Species_Richness=length(unique(Predator_common_name))) %>% #find the unique number of species at each latitude
+  ggplot(.,aes(x=Latitude, y=Predator_Species_Richness))+
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  fte_theme()+
+  labs(x = 'Latitude', y = 'Predator Species Richness')
+PredatorrichlatS
+
+PredatorrichlmS <- lm(Predator_Species_Richness ~ Latitude, data = predprey2S)
+summary(PredatorrichlmS) #not sig
+plot(PredatorrichlmS)
+
+PreyrichlatS <- predprey2S %>% 
+  group_by(Latitude) %>% 
+  summarize(Prey_Species_Richness=length(unique(Prey_common_name))) %>% 
+  ggplot(.,aes(x=Latitude, y=Prey_Species_Richness))+
+  geom_point()+
+  geom_smooth(method = 'lm')+
+  fte_theme()+
+  labs(x = 'Latitude', y = 'Prey Species Richness')
+PreyrichlatS
+
+PreyrichlmS <- lm(Prey_Species_Richness ~ Latitude, data = predprey2S)
+summary(PreyrichlmS) #not sig
+plot(PreyrichlmS)
 
 ```
 
@@ -136,17 +179,11 @@ library(multcomp)
 
 #select only the traits we think will have biological meaning
 cutpredprey<-predprey %>% 
-  dplyr::select(Predator, Predator_common_name, Predator_total_length, Predator_mass, Prey_common_name, Prey_taxon, Prey_length, Prey_mass, Geographic_location, Latitude, Longitude, Depth, Mean_annual_temp, Specific_habitat)
+  dplyr::select(Predator_total_length, Predator_mass, Prey_length, Prey_mass, Latitude, Longitude, Depth, Mean_annual_temp)
 
-#change all traits to be numeric, to do PCA
+#change all neccessary traits to be numeric, to do PCA
 str(cutpredprey)
-cutpredprey$Predator<- as.numeric(cutpredprey$Predator)
-cutpredprey$Predator_common_name<- as.numeric(cutpredprey$Predator_common_name)
-cutpredprey$Prey_common_name<- as.numeric(cutpredprey$Prey_common_name)
-cutpredprey$Prey_taxon<- as.numeric(cutpredprey$Prey_taxon)
-cutpredprey$Geographic_location<- as.numeric(cutpredprey$Geographic_location)
 cutpredprey$Depth<- as.numeric(cutpredprey$Depth)
-cutpredprey$Specific_habitat<- as.numeric(cutpredprey$Specific_habitat)
 
 cutpredprey<- cutpredprey[complete.cases(cutpredprey),] #Only use complete cases to make things easier
 predprey_cor <- cor(cutpredprey) #create a correlation matrix
@@ -154,25 +191,25 @@ det(predprey_cor) #we want to see that our determinant is greater than the neces
 ```
 Running the first principal test:
 ```{r}
-pc1 <- principal(predprey_cor, nfactors =14, rotate = "none") #Put 14 factors because this is how many traits we left in
+pc1 <- principal(predprey_cor, nfactors =8, rotate = "none") #Put 8 factors because this is how many traits we left in
 pc1
-#There are six SS loadings with a value over 1, meaning only 6 factors are probably important
+#There are 3 SS loadings with a value over 1, meaning only 3 factors are probably important
 ```
 ```{r}
-plot(pc1$values, type = "b") #6 components from the scree plot is also a reasonable estimate
+plot(pc1$values, type = "b") #3 components from the scree plot is also a reasonable estimate
 ```
-Let's run the function again with only 6 factors:
+Let's run the function again with only 3 factors:
 ```{r}
-pc2 <- principal(predprey_cor, nfactors = 6, rotate = "none")
+pc2 <- principal(predprey_cor, nfactors = 3, rotate = "none")
 pc2
 ```
 Finally, let's run the function using rotate to adjust the values:
 ```{r}
-pc3 <- principal(predprey_cor, nfactors = 6, rotate = "varimax")
+pc3 <- principal(predprey_cor, nfactors = 3, rotate = "varimax")
 pc3
 ```
 ```{r}
 a<-print.psych(pc3, cut = 0.3, sort = TRUE) #To create a nice read out of our groups
 
 ```
-The important groups here could be the clumping of depth, temperature, and predator. Another could be specific habitat and its correlation with predator mass. Finally, prey common name and latitude are also highly correlated. 
+The groups formed here make some sense, and can inform members on what to test next. Prey length, prey mass and predator mass are a group. Mean annual temp, depth, and a negatively correlated longitude are a group. Longitude, latitude and predator total length also form a group.
